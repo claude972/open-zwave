@@ -1,0 +1,143 @@
+{
+  "name": "HubRise - Récupération Catalogue",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Déclencheur Manuel",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $json.location_id }}/catalogs/{{ $json.catalog_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "hubrise-get-catalog",
+      "name": "HubRise - Get Catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "location_id",
+              "value": "={{ $env.HUBRISE_LOCATION_ID }}"
+            },
+            {
+              "name": "catalog_id",
+              "value": "={{ $env.HUBRISE_CATALOG_ID }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-config",
+      "name": "Configuration HubRise",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transformation du catalogue HubRise pour Vapi\nconst catalog = $input.first().json;\n\nconst menuItems = [];\n\nif (catalog.categories) {\n  for (const category of catalog.categories) {\n    const categoryName = category.name;\n    \n    if (category.products) {\n      for (const productRef of category.products) {\n        // Trouver le produit dans le catalogue\n        const product = catalog.products?.find(p => p.ref === productRef.ref);\n        \n        if (product) {\n          menuItems.push({\n            id: product.ref,\n            name: product.name,\n            description: product.description || '',\n            category: categoryName,\n            price: product.skus?.[0]?.price ? parseFloat(product.skus[0].price) / 100 : 0,\n            currency: 'EUR',\n            available: product.skus?.[0]?.available !== false,\n            options: product.option_lists?.map(ol => ({\n              name: ol.name,\n              choices: ol.options?.map(opt => ({\n                name: opt.name,\n                price: opt.price ? parseFloat(opt.price) / 100 : 0\n              })) || []\n            })) || []\n          });\n        }\n      }\n    }\n  }\n}\n\nreturn {\n  json: {\n    restaurant_catalog: {\n      last_updated: new Date().toISOString(),\n      total_items: menuItems.length,\n      categories: [...new Set(menuItems.map(i => i.category))],\n      items: menuItems\n    }\n  }\n};"
+      },
+      "id": "transform-catalog",
+      "name": "Transformer Catalogue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Réponse",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Déclencheur Manuel": {
+      "main": [
+        [
+          {
+            "node": "Configuration HubRise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuration HubRise": {
+      "main": [
+        [
+          {
+            "node": "HubRise - Get Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise - Get Catalog": {
+      "main": [
+        [
+          {
+            "node": "Transformer Catalogue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transformer Catalogue": {
+      "main": [
+        [
+          {
+            "node": "Réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "restaurant",
+      "id": "1"
+    },
+    {
+      "name": "hubrise",
+      "id": "2"
+    }
+  ]
+}

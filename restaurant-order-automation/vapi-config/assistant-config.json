@@ -1,0 +1,74 @@
+{
+  "name": "Assistant Commande Restaurant",
+  "description": "Assistant vocal pour la prise de commande dans un restaurant",
+
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "model": "eleven_multilingual_v2",
+    "stability": 0.5,
+    "similarityBoost": 0.75,
+    "style": 0.5,
+    "useSpeakerBoost": true
+  },
+
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4-turbo",
+    "temperature": 0.7,
+    "maxTokens": 500,
+    "emotionRecognitionEnabled": true
+  },
+
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "fr",
+    "smartFormat": true,
+    "keywords": []
+  },
+
+  "firstMessage": "Bonjour et bienvenue chez {{restaurant_name}} ! Je suis votre assistant vocal. Comment puis-je vous aider aujourd'hui ? Souhaitez-vous passer une commande, connaître notre menu ou obtenir des informations sur le restaurant ?",
+
+  "firstMessageMode": "assistant-speaks-first",
+
+  "hipaaEnabled": false,
+  "recordingEnabled": true,
+  "endCallAfterSilenceMs": 30000,
+  "maxDurationSeconds": 600,
+  "backgroundSound": "off",
+  "backchannelingEnabled": true,
+  "backgroundDenoisingEnabled": true,
+
+  "clientMessages": [
+    "transcript",
+    "hang",
+    "function-call",
+    "speech-update",
+    "metadata",
+    "conversation-update"
+  ],
+
+  "serverMessages": [
+    "end-of-call-report",
+    "status-update",
+    "hang",
+    "function-call"
+  ],
+
+  "serverUrl": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler",
+  "serverUrlSecret": "{{VAPI_WEBHOOK_SECRET}}",
+
+  "analysisPlan": {
+    "summaryPrompt": "Résumer cette conversation de commande restaurant en français. Inclure: articles commandés, total, mode de livraison, et informations client.",
+    "structuredDataPrompt": "Extraire les données structurées de cette commande restaurant.",
+    "successEvaluationPrompt": "La commande a-t-elle été passée avec succès ?",
+    "successEvaluationRubric": "AutomaticRubric"
+  },
+
+  "metadata": {
+    "restaurant_id": "{{HUBRISE_LOCATION_ID}}",
+    "integration": "hubrise",
+    "version": "1.0.0"
+  }
+}

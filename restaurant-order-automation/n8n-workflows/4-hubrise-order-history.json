@@ -1,0 +1,119 @@
+{
+  "name": "HubRise - Historique Commandes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "order-history",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Get Orders",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "order-history"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Préparer les paramètres de recherche\nconst query = $input.first().json.query || {};\n\nconst params = {\n  limit: query.limit || 50,\n  status: query.status || null,\n  after: query.after || null,\n  before: query.before || null,\n  customer_id: query.customer_id || null\n};\n\n// Construire l'URL avec les paramètres\nlet queryString = Object.entries(params)\n  .filter(([key, value]) => value !== null)\n  .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)\n  .join('&');\n\nreturn {\n  json: {\n    query_string: queryString ? `?${queryString}` : '',\n    params: params\n  }\n};"
+      },
+      "id": "prepare-query",
+      "name": "Préparer Requête",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $env.HUBRISE_LOCATION_ID }}/orders{{ $json.query_string }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-orders",
+      "name": "HubRise - Get Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formater l'historique des commandes\nconst orders = $input.first().json || [];\n\nconst statusLabels = {\n  'new': 'Nouvelle',\n  'received': 'Reçue',\n  'accepted': 'Acceptée',\n  'in_preparation': 'En préparation',\n  'awaiting_shipment': 'Prête',\n  'awaiting_collection': 'À récupérer',\n  'in_delivery': 'En livraison',\n  'completed': 'Terminée',\n  'rejected': 'Refusée',\n  'cancelled': 'Annulée',\n  'delivery_failed': 'Échec livraison'\n};\n\nconst formattedOrders = (Array.isArray(orders) ? orders : [orders]).map(order => ({\n  id: order.id,\n  confirmation_code: order.confirmation_code || order.id?.slice(-6).toUpperCase(),\n  status: order.status,\n  status_label: statusLabels[order.status] || order.status,\n  service_type: order.service_type,\n  \n  customer: {\n    name: `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim(),\n    phone: order.customer?.phone || '',\n    email: order.customer?.email || ''\n  },\n  \n  items: order.items?.map(item => ({\n    name: item.product_name,\n    quantity: item.quantity,\n    price: item.price ? parseInt(item.price) / 100 : 0,\n    options: item.options?.map(opt => opt.name) || []\n  })) || [],\n  \n  total: order.total ? parseInt(order.total) / 100 : 0,\n  currency: 'EUR',\n  \n  timestamps: {\n    created_at: order.created_at,\n    expected_time: order.expected_time,\n    confirmed_time: order.confirmed_time\n  },\n  \n  source: order.custom_fields?.source || 'unknown'\n}));\n\n// Statistiques\nconst stats = {\n  total_orders: formattedOrders.length,\n  by_status: {},\n  total_revenue: formattedOrders.reduce((sum, o) => sum + o.total, 0)\n};\n\nformattedOrders.forEach(order => {\n  stats.by_status[order.status] = (stats.by_status[order.status] || 0) + 1;\n});\n\nreturn {\n  json: {\n    orders: formattedOrders,\n    statistics: stats,\n    retrieved_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-orders",
+      "name": "Formater Commandes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Répondre",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Get Orders": {
+      "main": [
+        [
+          {
+            "node": "Préparer Requête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer Requête": {
+      "main": [
+        [
+          {
+            "node": "HubRise - Get Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise - Get Orders": {
+      "main": [
+        [
+          {
+            "node": "Formater Commandes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Commandes": {
+      "main": [
+        [
+          {
+            "node": "Répondre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
