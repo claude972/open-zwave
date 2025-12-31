@@ -1,0 +1,157 @@
+{
+  "name": "HubRise - Informations Restaurant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "restaurant-info",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Get Info",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "restaurant-info"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $env.HUBRISE_LOCATION_ID }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-location",
+      "name": "HubRise - Get Location",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/accounts/{{ $env.HUBRISE_ACCOUNT_ID }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-account",
+      "name": "HubRise - Get Account",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Fusionner Données",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combiner et formater les informations restaurant\nconst items = $input.all();\nconst location = items[0]?.json || {};\nconst account = items[1]?.json || {};\n\n// Formater les horaires d'ouverture\nconst formatOpeningHours = (hours) => {\n  if (!hours) return null;\n  \n  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];\n  const daysFr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];\n  \n  return days.map((day, index) => {\n    const dayHours = hours[day];\n    if (!dayHours || dayHours.length === 0) {\n      return { day: daysFr[index], status: 'Fermé', slots: [] };\n    }\n    return {\n      day: daysFr[index],\n      status: 'Ouvert',\n      slots: dayHours.map(slot => `${slot.from} - ${slot.to}`)\n    };\n  });\n};\n\n// Vérifier si le restaurant est actuellement ouvert\nconst isCurrentlyOpen = (hours) => {\n  if (!hours) return { open: false, message: 'Horaires non disponibles' };\n  \n  const now = new Date();\n  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];\n  const currentDay = days[now.getDay()];\n  const currentTime = now.toTimeString().slice(0, 5);\n  \n  const todayHours = hours[currentDay];\n  if (!todayHours || todayHours.length === 0) {\n    return { open: false, message: 'Fermé aujourd\\'hui' };\n  }\n  \n  for (const slot of todayHours) {\n    if (currentTime >= slot.from && currentTime <= slot.to) {\n      return { open: true, message: `Ouvert jusqu'à ${slot.to}` };\n    }\n  }\n  \n  // Trouver le prochain créneau\n  const nextSlot = todayHours.find(slot => currentTime < slot.from);\n  if (nextSlot) {\n    return { open: false, message: `Fermé, ouvre à ${nextSlot.from}` };\n  }\n  \n  return { open: false, message: 'Fermé pour aujourd\\'hui' };\n};\n\nconst restaurantInfo = {\n  name: location.name || account.name || 'Restaurant',\n  id: location.id,\n  account_id: account.id,\n  \n  contact: {\n    phone: location.phone || '',\n    email: location.email || account.email || '',\n    website: location.website || ''\n  },\n  \n  address: {\n    street: location.address_1 || '',\n    street2: location.address_2 || '',\n    city: location.city || '',\n    postal_code: location.postal_code || '',\n    country: location.country || 'FR',\n    full_address: [\n      location.address_1,\n      location.address_2,\n      `${location.postal_code} ${location.city}`,\n      location.country\n    ].filter(Boolean).join(', ')\n  },\n  \n  coordinates: {\n    latitude: location.latitude || null,\n    longitude: location.longitude || null\n  },\n  \n  opening_hours: formatOpeningHours(location.opening_hours),\n  current_status: isCurrentlyOpen(location.opening_hours),\n  \n  services: {\n    delivery: location.delivery_enabled !== false,\n    collection: location.collection_enabled !== false,\n    eat_in: location.eat_in_enabled || false\n  },\n  \n  currency: location.currency || 'EUR',\n  timezone: location.timezone || 'Europe/Paris',\n  \n  metadata: {\n    created_at: location.created_at,\n    catalog_id: location.catalog_id,\n    customer_list_id: location.customer_list_id\n  }\n};\n\nreturn { json: restaurantInfo };"
+      },
+      "id": "format-info",
+      "name": "Formater Informations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Répondre",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 400]
+    }
+  ],
+  "connections": {
+    "Webhook - Get Info": {
+      "main": [
+        [
+          {
+            "node": "HubRise - Get Location",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HubRise - Get Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise - Get Location": {
+      "main": [
+        [
+          {
+            "node": "Fusionner Données",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise - Get Account": {
+      "main": [
+        [
+          {
+            "node": "Fusionner Données",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fusionner Données": {
+      "main": [
+        [
+          {
+            "node": "Formater Informations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Informations": {
+      "main": [
+        [
+          {
+            "node": "Répondre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

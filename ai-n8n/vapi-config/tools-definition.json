@@ -1,0 +1,322 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_menu",
+        "description": "Récupère le menu complet du restaurant avec toutes les catégories et articles disponibles",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "description": "Catégorie spécifique à récupérer (optionnel). Ex: 'entrées', 'plats', 'desserts', 'boissons'"
+            }
+          },
+          "required": []
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_item_details",
+        "description": "Récupère les détails complets d'un article du menu incluant description, prix, allergènes et options disponibles",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_name": {
+              "type": "string",
+              "description": "Nom de l'article à rechercher"
+            },
+            "item_id": {
+              "type": "string",
+              "description": "Identifiant unique de l'article (si connu)"
+            }
+          },
+          "required": ["item_name"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "add_to_order",
+        "description": "Ajoute un article à la commande en cours du client",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "description": "Identifiant de l'article à ajouter"
+            },
+            "item_name": {
+              "type": "string",
+              "description": "Nom de l'article à ajouter"
+            },
+            "quantity": {
+              "type": "integer",
+              "description": "Quantité souhaitée",
+              "default": 1,
+              "minimum": 1
+            },
+            "options": {
+              "type": "array",
+              "description": "Options sélectionnées pour l'article",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "option_list_name": {
+                    "type": "string",
+                    "description": "Nom de la liste d'options (ex: 'Cuisson', 'Accompagnement')"
+                  },
+                  "option_name": {
+                    "type": "string",
+                    "description": "Option choisie (ex: 'Saignant', 'Frites')"
+                  }
+                }
+              }
+            },
+            "notes": {
+              "type": "string",
+              "description": "Notes spéciales pour cet article (allergies, préférences)"
+            }
+          },
+          "required": ["item_name"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "remove_from_order",
+        "description": "Retire un article de la commande en cours",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "description": "Identifiant de l'article à retirer"
+            },
+            "item_name": {
+              "type": "string",
+              "description": "Nom de l'article à retirer"
+            }
+          },
+          "required": ["item_name"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "modify_item_quantity",
+        "description": "Modifie la quantité d'un article dans la commande",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_name": {
+              "type": "string",
+              "description": "Nom de l'article à modifier"
+            },
+            "new_quantity": {
+              "type": "integer",
+              "description": "Nouvelle quantité souhaitée",
+              "minimum": 1
+            }
+          },
+          "required": ["item_name", "new_quantity"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order_summary",
+        "description": "Récupère le récapitulatif complet de la commande en cours avec le total",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "submit_order",
+        "description": "Valide et soumet la commande finale au restaurant",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "customer_first_name": {
+              "type": "string",
+              "description": "Prénom du client"
+            },
+            "customer_last_name": {
+              "type": "string",
+              "description": "Nom de famille du client"
+            },
+            "customer_phone": {
+              "type": "string",
+              "description": "Numéro de téléphone du client"
+            },
+            "customer_email": {
+              "type": "string",
+              "description": "Email du client (optionnel)"
+            },
+            "service_type": {
+              "type": "string",
+              "enum": ["delivery", "collection"],
+              "description": "Type de service: 'delivery' pour livraison, 'collection' pour retrait"
+            },
+            "delivery_address": {
+              "type": "object",
+              "description": "Adresse de livraison (requis si service_type est 'delivery')",
+              "properties": {
+                "street": {
+                  "type": "string",
+                  "description": "Numéro et nom de rue"
+                },
+                "street2": {
+                  "type": "string",
+                  "description": "Complément d'adresse (étage, code, etc.)"
+                },
+                "city": {
+                  "type": "string",
+                  "description": "Ville"
+                },
+                "postal_code": {
+                  "type": "string",
+                  "description": "Code postal"
+                }
+              }
+            },
+            "expected_time": {
+              "type": "string",
+              "description": "Heure souhaitée pour la livraison/retrait (format HH:MM)"
+            },
+            "payment_method": {
+              "type": "string",
+              "enum": ["cash", "card", "online"],
+              "description": "Mode de paiement choisi"
+            },
+            "notes": {
+              "type": "string",
+              "description": "Notes générales pour la commande"
+            }
+          },
+          "required": ["customer_first_name", "customer_phone", "service_type"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_restaurant_info",
+        "description": "Récupère les informations du restaurant (horaires, adresse, services disponibles)",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "info_type": {
+              "type": "string",
+              "enum": ["all", "hours", "address", "services", "contact"],
+              "description": "Type d'information souhaitée",
+              "default": "all"
+            }
+          },
+          "required": []
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_availability",
+        "description": "Vérifie si un article est disponible actuellement",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "item_name": {
+              "type": "string",
+              "description": "Nom de l'article à vérifier"
+            }
+          },
+          "required": ["item_name"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_delivery_zone",
+        "description": "Vérifie si une adresse est dans la zone de livraison",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "postal_code": {
+              "type": "string",
+              "description": "Code postal à vérifier"
+            },
+            "city": {
+              "type": "string",
+              "description": "Ville à vérifier"
+            }
+          },
+          "required": ["postal_code"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_estimated_time",
+        "description": "Obtient le temps d'attente estimé pour une commande",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "service_type": {
+              "type": "string",
+              "enum": ["delivery", "collection"],
+              "description": "Type de service"
+            }
+          },
+          "required": ["service_type"]
+        }
+      },
+      "server": {
+        "url": "{{N8N_WEBHOOK_URL}}/webhook/vapi-handler"
+      }
+    }
+  ]
+}

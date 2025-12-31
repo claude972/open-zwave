@@ -1,0 +1,164 @@
+{
+  "name": "HubRise - Création Commande",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hubrise-create-order",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Nouvelle Commande",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "hubrise-create-order"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validation et transformation de la commande\nconst orderData = $input.first().json;\n\n// Validation des champs requis\nif (!orderData.items || orderData.items.length === 0) {\n  throw new Error('La commande doit contenir au moins un article');\n}\n\nif (!orderData.customer) {\n  throw new Error('Les informations client sont requises');\n}\n\n// Transformation au format HubRise\nconst hubRiseOrder = {\n  status: 'new',\n  service_type: orderData.service_type || 'delivery',\n  service_type_ref: orderData.service_type === 'collection' ? 'collection' : 'delivery',\n  expected_time: orderData.expected_time || null,\n  customer: {\n    first_name: orderData.customer.first_name || '',\n    last_name: orderData.customer.last_name || '',\n    phone: orderData.customer.phone || '',\n    email: orderData.customer.email || '',\n    delivery_notes: orderData.customer.delivery_notes || ''\n  },\n  items: orderData.items.map(item => ({\n    product_name: item.name,\n    sku_ref: item.sku_ref || item.id,\n    quantity: item.quantity || 1,\n    price: Math.round((item.price || 0) * 100).toString(),\n    options: item.options?.map(opt => ({\n      option_list_name: opt.option_list_name,\n      name: opt.name,\n      ref: opt.ref,\n      price: Math.round((opt.price || 0) * 100).toString()\n    })) || [],\n    customer_notes: item.notes || ''\n  })),\n  payments: orderData.payment ? [{\n    type: orderData.payment.type || 'cash',\n    amount: Math.round((orderData.payment.amount || 0) * 100).toString()\n  }] : [],\n  total: Math.round((orderData.total || 0) * 100).toString(),\n  custom_fields: {\n    source: 'vapi_voice_order',\n    conversation_id: orderData.conversation_id || ''\n  }\n};\n\n// Ajouter l'adresse si livraison\nif (orderData.service_type === 'delivery' && orderData.delivery_address) {\n  hubRiseOrder.customer.address_1 = orderData.delivery_address.street || '';\n  hubRiseOrder.customer.address_2 = orderData.delivery_address.street2 || '';\n  hubRiseOrder.customer.city = orderData.delivery_address.city || '';\n  hubRiseOrder.customer.postal_code = orderData.delivery_address.postal_code || '';\n  hubRiseOrder.customer.country = orderData.delivery_address.country || 'FR';\n}\n\nreturn {\n  json: {\n    hubrise_order: hubRiseOrder,\n    original_order: orderData\n  }\n};"
+      },
+      "id": "validate-transform",
+      "name": "Valider & Transformer Commande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $env.HUBRISE_LOCATION_ID }}/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.hubrise_order) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "hubrise-create",
+      "name": "HubRise - Créer Commande",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Préparer la réponse\nconst hubRiseResponse = $input.first().json;\n\nreturn {\n  json: {\n    success: true,\n    order_id: hubRiseResponse.id,\n    status: hubRiseResponse.status,\n    confirmation_code: hubRiseResponse.confirmation_code || hubRiseResponse.id?.slice(-6).toUpperCase(),\n    message: `Commande ${hubRiseResponse.id} créée avec succès`,\n    estimated_time: hubRiseResponse.expected_time || '30-45 minutes',\n    details: {\n      total: hubRiseResponse.total ? parseInt(hubRiseResponse.total) / 100 : 0,\n      items_count: hubRiseResponse.items?.length || 0,\n      service_type: hubRiseResponse.service_type\n    }\n  }\n};"
+      },
+      "id": "prepare-response",
+      "name": "Préparer Réponse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Répondre au Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gestion des erreurs\nconst error = $input.first().json;\n\nreturn {\n  json: {\n    success: false,\n    error: error.message || 'Une erreur est survenue lors de la création de la commande',\n    code: error.code || 'ORDER_CREATION_FAILED'\n  }\n};"
+      },
+      "id": "handle-error",
+      "name": "Gérer Erreur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "Répondre Erreur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 500]
+    }
+  ],
+  "connections": {
+    "Webhook - Nouvelle Commande": {
+      "main": [
+        [
+          {
+            "node": "Valider & Transformer Commande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider & Transformer Commande": {
+      "main": [
+        [
+          {
+            "node": "HubRise - Créer Commande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise - Créer Commande": {
+      "main": [
+        [
+          {
+            "node": "Préparer Réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer Réponse": {
+      "main": [
+        [
+          {
+            "node": "Répondre au Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gérer Erreur": {
+      "main": [
+        [
+          {
+            "node": "Répondre Erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "Gérer Erreur"
+  }
+}

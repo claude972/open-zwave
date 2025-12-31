@@ -1,0 +1,665 @@
+{
+  "name": "Vapi - Webhook Handler Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-handler",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-vapi",
+      "name": "Webhook Vapi",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 400],
+      "webhookId": "vapi-handler"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parser et router les requêtes Vapi\nconst body = $input.first().json;\n\n// Vapi envoie différents types de messages\nconst messageType = body.message?.type || body.type || 'unknown';\n\nlet routingInfo = {\n  message_type: messageType,\n  call_id: body.message?.call?.id || body.call?.id || '',\n  assistant_id: body.message?.assistant?.id || body.assistant?.id || '',\n  timestamp: new Date().toISOString()\n};\n\n// Si c'est un function-call\nif (messageType === 'function-call' || body.message?.functionCall) {\n  const functionCall = body.message?.functionCall || body.functionCall;\n  routingInfo.function_name = functionCall?.name || '';\n  routingInfo.function_parameters = functionCall?.parameters || {};\n  routingInfo.route = 'function';\n} \n// Status update\nelse if (messageType === 'status-update') {\n  routingInfo.status = body.message?.status || '';\n  routingInfo.route = 'status';\n}\n// End of call report\nelse if (messageType === 'end-of-call-report') {\n  routingInfo.summary = body.message?.summary || '';\n  routingInfo.transcript = body.message?.transcript || '';\n  routingInfo.route = 'end-call';\n}\n// Assistant request (demande de config)\nelse if (messageType === 'assistant-request') {\n  routingInfo.route = 'assistant-config';\n}\nelse {\n  routingInfo.route = 'unknown';\n}\n\nreturn {\n  json: {\n    ...routingInfo,\n    raw_body: body\n  }\n};"
+      },
+      "id": "parse-request",
+      "name": "Parser Requête",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "function",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "function",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "status",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "end-call",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "end-call",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "switch-route",
+      "name": "Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "get_menu",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "get_menu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "get_item_details",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "get_item_details",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "add_to_order",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "add_to_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "remove_from_order",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "remove_from_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "get_order_summary",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "get_order_summary",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "submit_order",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "submit_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "get_restaurant_info",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "get_restaurant_info",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "check_availability",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.function_name }}",
+                    "rightValue": "check_availability",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "switch-function",
+      "name": "Router Fonction",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $env.HUBRISE_LOCATION_ID }}/catalogs/{{ $env.HUBRISE_CATALOG_ID }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "hubrise-catalog",
+      "name": "HubRise Catalogue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, -100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transformer le catalogue pour Vapi\nconst catalog = $input.first().json;\nconst params = $('Parser Requête').first().json.function_parameters;\n\nlet items = [];\n\nif (catalog.categories) {\n  for (const category of catalog.categories) {\n    // Filtrer par catégorie si spécifié\n    if (params.category && !category.name.toLowerCase().includes(params.category.toLowerCase())) {\n      continue;\n    }\n    \n    if (category.products) {\n      for (const productRef of category.products) {\n        const product = catalog.products?.find(p => p.ref === productRef.ref);\n        if (product) {\n          items.push({\n            id: product.ref,\n            name: product.name,\n            category: category.name,\n            price: product.skus?.[0]?.price ? (parseInt(product.skus[0].price) / 100).toFixed(2) + '€' : 'Prix sur demande',\n            description: product.description || ''\n          });\n        }\n      }\n    }\n  }\n}\n\n// Formater pour lecture vocale\nlet menuText = 'Voici notre menu:\\n\\n';\nconst categories = [...new Set(items.map(i => i.category))];\n\nfor (const cat of categories) {\n  menuText += `${cat}:\\n`;\n  const catItems = items.filter(i => i.category === cat);\n  for (const item of catItems) {\n    menuText += `- ${item.name} à ${item.price}\\n`;\n  }\n  menuText += '\\n';\n}\n\nreturn {\n  json: {\n    result: menuText,\n    items: items,\n    categories: categories\n  }\n};"
+      },
+      "id": "format-menu",
+      "name": "Formater Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gérer l'ajout au panier (stocké en mémoire par call_id)\nconst params = $input.first().json.function_parameters;\nconst callId = $input.first().json.call_id;\n\n// Note: En production, utiliser Redis ou une base de données pour stocker le panier\n// Ici on retourne simplement une confirmation\n\nconst response = {\n  result: `J'ai bien ajouté ${params.quantity || 1} ${params.item_name} à votre commande.`,\n  item_added: {\n    name: params.item_name,\n    quantity: params.quantity || 1,\n    options: params.options || [],\n    notes: params.notes || ''\n  },\n  call_id: callId\n};\n\nif (params.options && params.options.length > 0) {\n  response.result += ` Avec les options: ${params.options.map(o => o.option_name).join(', ')}.`;\n}\n\nif (params.notes) {\n  response.result += ` Note: ${params.notes}.`;\n}\n\nresponse.result += ' Souhaitez-vous autre chose?';\n\nreturn { json: response };"
+      },
+      "id": "handle-add-order",
+      "name": "Ajouter Article",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 100]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.hubrise.com/v1/locations/{{ $env.HUBRISE_LOCATION_ID }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "hubrise-location",
+      "name": "HubRise Location",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HUBRISE_CREDENTIALS_ID",
+          "name": "HubRise API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formater les infos restaurant pour Vapi\nconst location = $input.first().json;\nconst params = $('Parser Requête').first().json.function_parameters;\n\nconst formatHours = (hours) => {\n  if (!hours) return 'Horaires non disponibles';\n  const days = {\n    monday: 'Lundi',\n    tuesday: 'Mardi',\n    wednesday: 'Mercredi',\n    thursday: 'Jeudi',\n    friday: 'Vendredi',\n    saturday: 'Samedi',\n    sunday: 'Dimanche'\n  };\n  \n  let text = '';\n  for (const [day, label] of Object.entries(days)) {\n    const dayHours = hours[day];\n    if (dayHours && dayHours.length > 0) {\n      text += `${label}: ${dayHours.map(h => `${h.from} à ${h.to}`).join(', ')}\\n`;\n    } else {\n      text += `${label}: Fermé\\n`;\n    }\n  }\n  return text;\n};\n\nlet result = '';\nconst infoType = params.info_type || 'all';\n\nif (infoType === 'all' || infoType === 'hours') {\n  result += `Nos horaires d'ouverture:\\n${formatHours(location.opening_hours)}\\n`;\n}\n\nif (infoType === 'all' || infoType === 'address') {\n  result += `Notre adresse:\\n${location.address_1 || ''}\\n${location.postal_code || ''} ${location.city || ''}\\n`;\n}\n\nif (infoType === 'all' || infoType === 'contact') {\n  if (location.phone) result += `Téléphone: ${location.phone}\\n`;\n  if (location.email) result += `Email: ${location.email}\\n`;\n}\n\nif (infoType === 'all' || infoType === 'services') {\n  result += 'Services disponibles: ';\n  const services = [];\n  if (location.delivery_enabled !== false) services.push('Livraison');\n  if (location.collection_enabled !== false) services.push('Retrait sur place');\n  result += services.join(', ');\n}\n\nreturn {\n  json: {\n    result: result.trim(),\n    location: location\n  }\n};"
+      },
+      "id": "format-info",
+      "name": "Formater Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Préparer la réponse Vapi\nconst data = $input.first().json;\nconst originalRequest = $('Parser Requête').first().json;\n\n// Format de réponse Vapi pour function-call\nconst vapiResponse = {\n  results: [\n    {\n      toolCallId: originalRequest.raw_body?.message?.functionCall?.id || 'default',\n      result: data.result || JSON.stringify(data)\n    }\n  ]\n};\n\nreturn { json: vapiResponse };"
+      },
+      "id": "format-vapi-response",
+      "name": "Formater Réponse Vapi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-function",
+      "name": "Répondre Fonction",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"ok\"}",
+        "options": {}
+      },
+      "id": "respond-status",
+      "name": "Répondre Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sauvegarder le rapport de fin d'appel\nconst data = $input.first().json;\n\n// Ici vous pouvez sauvegarder dans une base de données\n// ou envoyer une notification\n\nconsole.log('Call ended:', data.call_id);\nconsole.log('Summary:', data.summary);\n\nreturn {\n  json: {\n    status: 'logged',\n    call_id: data.call_id\n  }\n};"
+      },
+      "id": "log-end-call",
+      "name": "Logger Fin Appel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"ok\"}",
+        "options": {}
+      },
+      "id": "respond-end-call",
+      "name": "Répondre Fin Appel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1100, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Soumettre la commande à HubRise\nconst params = $input.first().json.function_parameters;\nconst callId = $input.first().json.call_id;\n\n// Préparer la commande pour HubRise\nconst order = {\n  status: 'new',\n  service_type: params.service_type || 'delivery',\n  customer: {\n    first_name: params.customer_first_name || '',\n    last_name: params.customer_last_name || '',\n    phone: params.customer_phone || '',\n    email: params.customer_email || ''\n  },\n  custom_fields: {\n    source: 'vapi_voice',\n    call_id: callId\n  }\n};\n\nif (params.service_type === 'delivery' && params.delivery_address) {\n  order.customer.address_1 = params.delivery_address.street || '';\n  order.customer.address_2 = params.delivery_address.street2 || '';\n  order.customer.city = params.delivery_address.city || '';\n  order.customer.postal_code = params.delivery_address.postal_code || '';\n}\n\nif (params.expected_time) {\n  order.expected_time = params.expected_time;\n}\n\nif (params.notes) {\n  order.customer.delivery_notes = params.notes;\n}\n\nreturn {\n  json: {\n    hubrise_order: order,\n    params: params\n  }\n};"
+      },
+      "id": "prepare-order",
+      "name": "Préparer Commande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Réponse pour item details\nconst params = $input.first().json.function_parameters;\n\n// En production, chercher dans le catalogue HubRise\nreturn {\n  json: {\n    result: `Je recherche les détails pour ${params.item_name}. Un instant...`,\n    item_name: params.item_name\n  }\n};"
+      },
+      "id": "handle-item-details",
+      "name": "Détails Article",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retirer article du panier\nconst params = $input.first().json.function_parameters;\n\nreturn {\n  json: {\n    result: `J'ai retiré ${params.item_name} de votre commande. Souhaitez-vous modifier autre chose?`\n  }\n};"
+      },
+      "id": "handle-remove",
+      "name": "Retirer Article",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 175]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Récapitulatif de commande\n// En production, récupérer depuis le stockage par call_id\n\nreturn {\n  json: {\n    result: \"Voici le récapitulatif de votre commande. Souhaitez-vous confirmer ou modifier quelque chose?\"\n  }\n};"
+      },
+      "id": "handle-summary",
+      "name": "Récapitulatif",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 325]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vérifier disponibilité\nconst params = $input.first().json.function_parameters;\n\nreturn {\n  json: {\n    result: `Oui, ${params.item_name} est disponible. Souhaitez-vous l'ajouter à votre commande?`,\n    available: true\n  }\n};"
+      },
+      "id": "handle-availability",
+      "name": "Disponibilité",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1150, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Vapi": {
+      "main": [
+        [
+          {
+            "node": "Parser Requête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Requête": {
+      "main": [
+        [
+          {
+            "node": "Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router": {
+      "main": [
+        [
+          {
+            "node": "Router Fonction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Répondre Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Logger Fin Appel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router Fonction": {
+      "main": [
+        [
+          {
+            "node": "HubRise Catalogue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Détails Article",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ajouter Article",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retirer Article",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Récapitulatif",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Préparer Commande",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HubRise Location",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Disponibilité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise Catalogue": {
+      "main": [
+        [
+          {
+            "node": "Formater Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Menu": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ajouter Article": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubRise Location": {
+      "main": [
+        [
+          {
+            "node": "Formater Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Info": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Réponse Vapi": {
+      "main": [
+        [
+          {
+            "node": "Répondre Fonction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logger Fin Appel": {
+      "main": [
+        [
+          {
+            "node": "Répondre Fin Appel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Détails Article": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retirer Article": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récapitulatif": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer Commande": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disponibilité": {
+      "main": [
+        [
+          {
+            "node": "Formater Réponse Vapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
